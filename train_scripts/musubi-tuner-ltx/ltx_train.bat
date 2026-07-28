@@ -1,5 +1,6 @@
 @echo off
 setlocal enabledelayedexpansion
+set "SCRIPT_DIR=%~dp0"
 title Musubi LTX-2.3 LoRA Training (generic / parameter-driven)
 
 REM =====================================================================
@@ -8,6 +9,12 @@ REM  ltx_cache.bat (matched by --name), so run cache first.
 REM
 REM  NOTE: LTX (like WAN) has no in-training sampling, so there is no
 REM  --samples toggle here.
+REM
+REM  Resuming an aborted run:
+REM    No flag needed - resume is automatic (--autoresume is always passed to the
+REM    trainer). Just re-run the exact same command that started the job and it
+REM    will pick up the latest saved state in <output_dir> on its own:
+REM      ltx_train.bat --name tammy --trigger tammy
 REM
 REM  USAGE:
 REM    ltx_train.bat --name tammy [options]
@@ -22,13 +29,13 @@ REM    --trigger <word>      stamp into output LoRA metadata (comma-sep for many
 REM =====================================================================
 
 REM ---- load machine paths from config.bat (run setup.bat to create it) ----
-set "CONFIG=%~dp0..\config.bat"
+set "CONFIG=%SCRIPT_DIR%..\config.bat"
 if not exist "%CONFIG%" ( echo ERROR: config not found: %CONFIG% & echo Run setup.bat in the train_scripts folder once to create it. & exit /b 1 )
 call "%CONFIG%"
 
 REM ---- fixed paths / defaults ----
 set "MUSUBI_DIR=%MUSUBI_LTX_DIR%"
-set "GEN_DIR=%~dp0_generated"
+set "GEN_DIR=%SCRIPT_DIR%_generated"
 REM LTX_CHECKPOINT comes from config.bat
 set "GEMMA_ROOT=%LTX_GEMMA_ROOT%"
 
@@ -169,7 +176,7 @@ if not "%TRAINRC%"=="0" (
     if not "!TRIGGER!"=="" (
         echo.
         echo Stamping trigger word "!TRIGGER!" into output LoRAs...
-        python "%~dp0..\write_trigger.py" --dir "%OUTPUT_DIR%" --trigger "!TRIGGER!"
+        python "%SCRIPT_DIR%..\write_trigger.py" --dir "%OUTPUT_DIR%" --trigger "!TRIGGER!"
     )
 )
 

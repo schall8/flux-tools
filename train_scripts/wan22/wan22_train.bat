@@ -1,5 +1,6 @@
 @echo off
 setlocal enabledelayedexpansion
+set "SCRIPT_DIR=%~dp0"
 title Musubi WAN 2.2 LoRA Training (generic / parameter-driven)
 
 REM =====================================================================
@@ -18,15 +19,28 @@ REM    --epochs 16   --dim 16   --alpha 16   --lr 1e-4   --blocks-to-swap 30
 REM    --grad-accum 2   --warmup-steps 150   --save-every 1   --task t2v-A14B
 REM    --output-name <name>_wan22   --output-root D:\DATA\training\wan_loras
 REM    --trigger <word>      stamp into output LoRA metadata (comma-sep for many)
+REM    --resume <state-dir>  continue from a saved -state checkpoint dir
+REM
+REM  Resuming an aborted run:
+REM    Every run auto-saves a full trainer state (optimizer/scheduler/RNG/step) to
+REM    <output_dir>\<output_name>-state. If training is interrupted, point --resume
+REM    at that folder to continue from exactly where it left off (same args otherwise):
+REM      wan22_train.bat --name tammy --trigger tammy ^
+REM        --resume "D:\DATA	raining\wan_loras	ammy_wan22	ammy_wan22-state"
+REM
+REM  H2D-only block swap (experimental):
+REM    --h2d-swap on|off     (default: on) frozen-base-only block swap that skips the
+REM                          D2H copy; can speed up training, requires --gradient_checkpointing
+REM                          (already on here). May be slower on power-limited GPUs.
 REM =====================================================================
 
 REM ---- load machine paths from config.bat (run setup.bat to create it) ----
-set "CONFIG=%~dp0..\config.bat"
+set "CONFIG=%SCRIPT_DIR%..\config.bat"
 if not exist "%CONFIG%" ( echo ERROR: config not found: %CONFIG% & echo Run setup.bat in the train_scripts folder once to create it. & exit /b 1 )
 call "%CONFIG%"
 
 REM ---- fixed paths / defaults ----
-set "GEN_DIR=%~dp0_generated"
+set "GEN_DIR=%SCRIPT_DIR%_generated"
 set "DIT_LOW=%COMFY_MODELS%\diffusion_models\wan2.2_t2v_low_noise_14B_fp16.safetensors"
 set "DIT_HIGH=%COMFY_MODELS%\diffusion_models\wan2.2_t2v_high_noise_14B_fp16.safetensors"
 set "VAE=%COMFY_MODELS%\vae\wan_2.1_vae.safetensors"
@@ -46,6 +60,8 @@ set "WARMUP=150"
 set "SAVE_EVERY=1"
 set "TASK=t2v-A14B"
 set "TRIGGER="
+set "RESUME="
+set "H2D=on"
 set "DRYRUN=0"
 
 REM ---- parse args ----
@@ -69,6 +85,8 @@ if /i "%~1"=="--vae"            ( set "VAE=%~2" & shift & shift & goto parse )
 if /i "%~1"=="--t5"             ( set "T5=%~2" & shift & shift & goto parse )
 if /i "%~1"=="--logdir"         ( set "LOGDIR=%~2" & shift & shift & goto parse )
 if /i "%~1"=="--trigger"        ( set "TRIGGER=%~2" & shift & shift & goto parse )
+if /i "%~1"=="--resume"         ( set "RESUME=%~2" & shift & shift & goto parse )
+if /i "%~1"=="--h2d-swap"       ( set "H2D=%~2" & shift & shift & goto parse )
 if /i "%~1"=="--dry-run"        ( set "DRYRUN=1" & shift & goto parse )
 echo ERROR: unknown argument: %~1
 exit /b 1
@@ -85,13 +103,27 @@ if not exist "%TOML%" (
     exit /b 1
 )
 
+REM ---- resume toggle ----
+if not "%RESUME%"=="" (
+    if not exist "%RESUME%" ( echo ERROR: resume state not found: %RESUME% & exit /b 1 )
+    set "RESUME_ARG=--resume "%RESUME%""
+    set "RESUME_MSG=%RESUME%"
+) else (
+    set "RESUME_ARG="
+    set "RESUME_MSG=fresh (no resume)"
+)
+
 echo.
 echo WAN 2.2 T2V LoRA training - %NAME%  (dual high+low noise)
 echo   Config:   %TOML%
 echo   Output:   %OUTPUT_DIR%\%OUTPUT_NAME%
 echo   Task:     %TASK%
 echo   Epochs:   %EPOCHS%   dim/alpha: %DIM%/%ALPHA%   lr: %LR%   blocks_to_swap: %BLOCKS%
+echo   Resume:   !RESUME_MSG!
+echo   H2D-only block swap: %H2D%
 echo   (no in-training sampling for WAN)
+
+if /i "%H2D%"=="on" ( set "H2D_ARG=--block_swap_h2d_only" ) else ( set "H2D_ARG=" )
 
 if "%DRYRUN%"=="1" (
     echo.
@@ -117,6 +149,7 @@ accelerate launch --num_processes 1 --num_cpu_threads_per_process 1 "wan_train_n
   --fp8_base ^
   --gradient_accumulation_steps %GRAD_ACCUM% ^
   --blocks_to_swap %BLOCKS% ^
+  !H2D_ARG! ^
   --gradient_checkpointing ^
   --learning_rate %LR% ^
   --log_with tensorboard ^
@@ -133,6 +166,7 @@ accelerate launch --num_processes 1 --num_cpu_threads_per_process 1 "wan_train_n
   --output_dir "%OUTPUT_DIR%" ^
   --output_name "%OUTPUT_NAME%" ^
   !COMMENT_ARG! ^
+  !RESUME_ARG! ^
   --persistent_data_loader_workers ^
   --save_every_n_epochs %SAVE_EVERY% ^
   --save_state ^
@@ -153,7 +187,7 @@ if not "%TRAINRC%"=="0" (
     if not "!TRIGGER!"=="" (
         echo.
         echo Stamping trigger word "!TRIGGER!" into output LoRAs...
-        python "%~dp0..\write_trigger.py" --dir "%OUTPUT_DIR%" --trigger "!TRIGGER!"
+        python "%SCRIPT_DIR%..\write_trigger.py" --dir "%OUTPUT_DIR%" --trigger "!TRIGGER!"
     )
 )
 

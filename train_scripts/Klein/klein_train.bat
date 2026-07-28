@@ -1,5 +1,6 @@
 @echo off
 setlocal enabledelayedexpansion
+set "SCRIPT_DIR=%~dp0"
 title Musubi FLUX.2 Klein 9B LoRA Training (generic / parameter-driven)
 
 REM =====================================================================
@@ -14,23 +15,35 @@ REM    --epochs 16   --dim 32   --alpha 32   --lr 1e-4   --blocks-to-swap 6
 REM    --save-every 1   --warmup-steps 100
 REM    --output-name <name>_klein   --output-root D:\DATA\training\klein_loras
 REM
-REM  Sampling toggle (NEW):
-REM    --samples on|off      (default: on)
+REM  Sampling toggle:
+REM    --samples on|off      (default: off)
 REM    --sample-prompts <file>   (required when --samples on)
 REM    --sample-every 2
 REM
 REM  Trigger word (NEW):
 REM    --trigger <word>      stamp into output LoRA metadata after training
 REM                          (comma-separated for multiple, e.g. "c0urtney, corset")
+REM
+REM  H2D-only block swap (experimental):
+REM    --h2d-swap on|off     (default: on) frozen-base-only block swap that skips the
+REM                          D2H copy; can speed up training, requires --gradient_checkpointing
+REM                          (already on here). May be slower on power-limited GPUs.
+REM
+REM  Resuming an aborted run (NEW):
+REM    Every run auto-saves a full trainer state (optimizer/scheduler/RNG/step) to
+REM    <output_dir>\<output_name>-state. If training is interrupted, point --resume
+REM    at that folder to continue from exactly where it left off (same args otherwise):
+REM      klein_train.bat --name courtney --trigger courtney ^
+REM        --resume "D:\DATA	raining\klein_loras\courtney_klein\courtney_klein-state"
 REM =====================================================================
 
 REM ---- load machine paths from config.bat (run setup.bat to create it) ----
-set "CONFIG=%~dp0..\config.bat"
+set "CONFIG=%SCRIPT_DIR%..\config.bat"
 if not exist "%CONFIG%" ( echo ERROR: config not found: %CONFIG% & echo Run setup.bat in the train_scripts folder once to create it. & exit /b 1 )
 call "%CONFIG%"
 
 REM ---- fixed paths / defaults ----
-set "GEN_DIR=%~dp0_generated"
+set "GEN_DIR=%SCRIPT_DIR%_generated"
 set "DIT_CHECKPOINT=%FLUX2_DIR%\flux-2-klein-base-9b.safetensors"
 set "VAE_CHECKPOINT=%FLUX2_DIR%\ae.safetensors"
 set "TEXT_ENCODER=%FLUX2_DIR%\text_encoder\model-00001-of-00004.safetensors"
@@ -46,10 +59,12 @@ set "LR=1e-4"
 set "BLOCKS=6"
 set "SAVE_EVERY=1"
 set "WARMUP=100"
-set "SAMPLES=on"
+set "SAMPLES=off"
 set "SAMPLE_PROMPTS="
 set "SAMPLE_EVERY=2"
 set "TRIGGER="
+set "H2D=on"
+set "RESUME="
 set "DRYRUN=0"
 
 REM ---- parse args ----
@@ -70,6 +85,8 @@ if /i "%~1"=="--samples"        ( set "SAMPLES=%~2" & shift & shift & goto parse
 if /i "%~1"=="--sample-prompts" ( set "SAMPLE_PROMPTS=%~2" & shift & shift & goto parse )
 if /i "%~1"=="--sample-every"   ( set "SAMPLE_EVERY=%~2" & shift & shift & goto parse )
 if /i "%~1"=="--trigger"        ( set "TRIGGER=%~2" & shift & shift & goto parse )
+if /i "%~1"=="--h2d-swap"       ( set "H2D=%~2" & shift & shift & goto parse )
+if /i "%~1"=="--resume"         ( set "RESUME=%~2" & shift & shift & goto parse )
 if /i "%~1"=="--dry-run"        ( set "DRYRUN=1" & shift & goto parse )
 echo ERROR: unknown argument: %~1
 exit /b 1
@@ -97,12 +114,26 @@ if /i "%SAMPLES%"=="on" (
     set "SAMPLE_MSG=off"
 )
 
+REM ---- resume toggle ----
+if not "%RESUME%"=="" (
+    if not exist "%RESUME%" ( echo ERROR: resume state not found: %RESUME% & exit /b 1 )
+    set "RESUME_ARG=--resume "%RESUME%""
+    set "RESUME_MSG=%RESUME%"
+) else (
+    set "RESUME_ARG="
+    set "RESUME_MSG=fresh (no resume)"
+)
+
 echo.
 echo FLUX.2 Klein 9B LoRA training - %NAME%
 echo   Config:   %TOML%
 echo   Output:   %OUTPUT_DIR%\%OUTPUT_NAME%
 echo   Epochs:   %EPOCHS%   dim/alpha: %DIM%/%ALPHA%   lr: %LR%   blocks_to_swap: %BLOCKS%
 echo   Sampling: !SAMPLE_MSG!
+echo   H2D-only block swap: %H2D%
+echo   Resume:   !RESUME_MSG!
+
+if /i "%H2D%"=="on" ( set "H2D_ARG=--block_swap_h2d_only" ) else ( set "H2D_ARG=" )
 
 if "%DRYRUN%"=="1" (
     echo.
@@ -141,6 +172,7 @@ accelerate launch ^
   --fp8_text_encoder ^
   --gradient_checkpointing ^
   --blocks_to_swap %BLOCKS% ^
+  !H2D_ARG! ^
   --sdpa ^
   --optimizer_type adafactor ^
   --optimizer_args relative_step=False scale_parameter=False warmup_init=False ^
@@ -151,6 +183,8 @@ accelerate launch ^
   --gradient_accumulation_steps 1 ^
   --max_train_epochs %EPOCHS% ^
   --save_every_n_epochs %SAVE_EVERY% ^
+  --save_state ^
+  !RESUME_ARG! ^
   !SAMPLE_ARGS! ^
   !COMMENT_ARG! ^
   --output_dir "%OUTPUT_DIR%" ^
@@ -167,7 +201,7 @@ if not "%TRAINRC%"=="0" (
     if not "!TRIGGER!"=="" (
         echo.
         echo Stamping trigger word "!TRIGGER!" into output LoRAs...
-        python "%~dp0..\write_trigger.py" --dir "%OUTPUT_DIR%" --trigger "!TRIGGER!"
+        python "%SCRIPT_DIR%..\write_trigger.py" --dir "%OUTPUT_DIR%" --trigger "!TRIGGER!"
     )
 )
 

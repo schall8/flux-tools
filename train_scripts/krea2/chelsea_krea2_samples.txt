@@ -1,0 +1,3 @@
+chelsea_krea, candid realistic photograph of a young woman, natural strawberry-blonde hair with lighter highlights, light freckles across her nose and cheeks, blue-green eyes, relaxed soft smile, plain t-shirt, plain light gray studio background, soft even lighting, sharp focus, DSLR --w 512 --h 768 --s 20 --l 1.0 --d 42
+chelsea_krea, close-up portrait of a young woman with freckles and blonde hair, natural skin texture with visible pores, neutral expression, soft outdoor daylight --w 512 --h 768 --s 20 --l 1.0 --d 42
+chelsea_krea, a young woman in a black button-up shirt standing outdoors, smiling, autumn trees in the background, photorealistic --w 512 --h 768 --s 20 --l 1.0 --d 42

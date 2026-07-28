@@ -1,5 +1,6 @@
 @echo off
 setlocal enabledelayedexpansion
+set "SCRIPT_DIR=%~dp0"
 title Musubi Krea2 RAW LoRA Training (generic / parameter-driven)
 
 REM =====================================================================
@@ -15,23 +16,35 @@ REM    --dim 32   --alpha 32  --lr 1e-4   --blocks-to-swap 14
 REM    --save-every 1  --save-last 20  --grad-accum 4
 REM    --output-name <name>_krea2   --output-root D:\DATA\training\krea2_loras
 REM
-REM  Sampling toggle (NEW):
-REM    --samples on|off      (default: on)
+REM  Sampling toggle:
+REM    --samples on|off      (default: off)
 REM    --sample-prompts <file>   (required when --samples on)
 REM    --sample-every 2
 REM
 REM  Trigger word (NEW):
 REM    --trigger <word>      stamp into output LoRA metadata after training
 REM                          (comma-separated for multiple, e.g. "c0urtney, corset")
+REM
+REM  H2D-only block swap (experimental):
+REM    --h2d-swap on|off     (default: on) frozen-base-only block swap that skips the
+REM                          D2H copy; can speed up training, requires --gradient_checkpointing
+REM                          (already on here). May be slower on power-limited GPUs.
+REM
+REM  Resuming an aborted run:
+REM    Every run auto-saves a full trainer state (optimizer/scheduler/RNG/step) to
+REM    <output_dir>\<output_name>-state. If training is interrupted, point --resume
+REM    at that folder to continue from exactly where it left off (same args otherwise):
+REM      krea2_train.bat --name PR_krea --samples off --trigger PR_krea ^
+REM        --resume "D:\DATA	raining\krea2_loras\PR_krea_krea2\PR_krea_krea2-state"
 REM =====================================================================
 
 REM ---- load machine paths from config.bat (run setup.bat to create it) ----
-set "CONFIG=%~dp0..\config.bat"
+set "CONFIG=%SCRIPT_DIR%..\config.bat"
 if not exist "%CONFIG%" ( echo ERROR: config not found: %CONFIG% & echo Run setup.bat in the train_scripts folder once to create it. & exit /b 1 )
 call "%CONFIG%"
 
 REM ---- fixed paths / defaults ----
-set "GEN_DIR=%~dp0_generated"
+set "GEN_DIR=%SCRIPT_DIR%_generated"
 set "DIT_RAW=%COMFY_MODELS%\diffusion_models\krea2-raw.safetensors"
 set "VAE=%COMFY_MODELS%\vae\qwen_image_vae.safetensors"
 set "TEXT_ENCODER=%COMFY_MODELS%\text_encoders\Qwen3-VL-4B-Instruct\model-00001-of-00002.safetensors"
@@ -39,7 +52,7 @@ set "TEXT_ENCODER=%COMFY_MODELS%\text_encoders\Qwen3-VL-4B-Instruct\model-00001-
 set "NAME="
 set "OUTPUT_ROOT=%TRAINING_ROOT%\krea2_loras"
 set "OUTPUT_NAME="
-set "EPOCHS=40"
+set "EPOCHS=60"
 set "DIM=32"
 set "ALPHA=32"
 set "LR=1e-4"
@@ -47,11 +60,12 @@ set "BLOCKS=14"
 set "SAVE_EVERY=1"
 set "SAVE_LAST=20"
 set "GRAD_ACCUM=4"
-set "SAMPLES=on"
+set "SAMPLES=off"
 set "SAMPLE_PROMPTS="
 set "SAMPLE_EVERY=2"
 set "RESUME="
 set "TRIGGER="
+set "H2D=on"
 set "DRYRUN=0"
 
 REM ---- parse args ----
@@ -73,6 +87,7 @@ if /i "%~1"=="--sample-prompts" ( set "SAMPLE_PROMPTS=%~2" & shift & shift & got
 if /i "%~1"=="--sample-every"   ( set "SAMPLE_EVERY=%~2" & shift & shift & goto parse )
 if /i "%~1"=="--resume"         ( set "RESUME=%~2" & shift & shift & goto parse )
 if /i "%~1"=="--trigger"        ( set "TRIGGER=%~2" & shift & shift & goto parse )
+if /i "%~1"=="--h2d-swap"       ( set "H2D=%~2" & shift & shift & goto parse )
 if /i "%~1"=="--dry-run"        ( set "DRYRUN=1" & shift & goto parse )
 echo ERROR: unknown argument: %~1
 exit /b 1
@@ -117,7 +132,10 @@ echo   Output:   %OUTPUT_DIR%\%OUTPUT_NAME%
 echo   Epochs:   %EPOCHS%   dim/alpha: %DIM%/%ALPHA%   lr: %LR%   blocks_to_swap: %BLOCKS%
 echo   Sampling: !SAMPLE_MSG!
 echo   Resume:   !RESUME_MSG!
+echo   H2D-only block swap: %H2D%
 echo   NOTE: blocks_to_swap=%BLOCKS% for 16GB. Increase if OOM.
+
+if /i "%H2D%"=="on" ( set "H2D_ARG=--block_swap_h2d_only" ) else ( set "H2D_ARG=" )
 
 if "%DRYRUN%"=="1" (
     echo.
@@ -152,6 +170,7 @@ accelerate launch ^
   --fp8_scaled ^
   --gradient_checkpointing ^
   --blocks_to_swap %BLOCKS% ^
+  !H2D_ARG! ^
   --sdpa ^
   --optimizer_type adafactor ^
   --learning_rate %LR% ^
@@ -179,7 +198,7 @@ if not "%TRAINRC%"=="0" (
     if not "!TRIGGER!"=="" (
         echo.
         echo Stamping trigger word "!TRIGGER!" into output LoRAs...
-        python "%~dp0..\write_trigger.py" --dir "%OUTPUT_DIR%" --trigger "!TRIGGER!"
+        python "%SCRIPT_DIR%..\write_trigger.py" --dir "%OUTPUT_DIR%" --trigger "!TRIGGER!"
     )
 )
 

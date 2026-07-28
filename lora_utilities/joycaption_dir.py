@@ -38,6 +38,12 @@ PROMPTS = {
         "Describe the subject, clothing, pose, and setting. "
         "Do not mention the image's resolution or that it is an image."
     ),
+    "concise": (
+        "Write a single, concise sentence caption for this image in a formal "
+        "tone, describing only the subject, clothing/garment, and pose. "
+        "Do not describe the background or setting in detail. "
+        "Do not mention the image's resolution or that it is an image."
+    ),
     "tags": (
         "Write a comma-separated list of booru-style tags describing this "
         "image, including subject, clothing, pose, and background."
@@ -110,13 +116,27 @@ def load_model(device: str):
     processor = AutoProcessor.from_pretrained(MODEL_ID)
     model = LlavaForConditionalGeneration.from_pretrained(
         MODEL_ID,
-        torch_dtype=dtype,
+        dtype=dtype,
         device_map=device if device.startswith("cuda") else None,
     )
     if not device.startswith("cuda"):
         model = model.to(device)
     model.eval()
     return processor, model, dtype
+
+
+def get_terminators(processor):
+    # Llama-3's tokenizer.eos_token_id only covers <|end_of_text|> (128001).
+    # The chat template actually ends turns with <|eot_id|> (128009), which
+    # generate() won't stop on unless we pass it explicitly. Without this,
+    # generation runs past the real answer to max_new_tokens and degenerates
+    # into repetitive garbage once it's out of anything sensible to say.
+    tok = processor.tokenizer
+    ids = {tok.eos_token_id}
+    eot_id = tok.convert_tokens_to_ids("<|eot_id|>")
+    if isinstance(eot_id, int) and eot_id >= 0:
+        ids.add(eot_id)
+    return [i for i in ids if i is not None]
 
 
 @torch.no_grad()
@@ -134,7 +154,13 @@ def caption_image(image: Image.Image, prompt: str, processor, model, dtype, args
     if "pixel_values" in inputs:
         inputs["pixel_values"] = inputs["pixel_values"].to(dtype)
 
-    gen_kwargs = dict(max_new_tokens=args.max_new_tokens, use_cache=True)
+    terminators = get_terminators(processor)
+    gen_kwargs = dict(
+        max_new_tokens=args.max_new_tokens,
+        use_cache=True,
+        eos_token_id=terminators,
+        pad_token_id=terminators[0],
+    )
     if args.greedy:
         gen_kwargs.update(do_sample=False)
     else:
@@ -142,6 +168,7 @@ def caption_image(image: Image.Image, prompt: str, processor, model, dtype, args
             do_sample=True,
             temperature=args.temperature,
             top_p=args.top_p,
+            repetition_penalty=1.1,
         )
 
     generate_ids = model.generate(**inputs, **gen_kwargs)[0]

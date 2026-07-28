@@ -28,7 +28,7 @@ set "MODEL_VERSION=klein-base-9b"
 
 set "NAME="
 set "DATASET="
-set "REPEATS=3"
+set "REPEATS=4"
 set "RES=512x768"
 set "DRYRUN=0"
 

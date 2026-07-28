@@ -54,7 +54,9 @@ If you run a script before `config.bat` exists, it stops and tells you to run
 `setup.bat`.
 
 Sampling support by architecture: **krea2 / klein / z-image have the `--samples`
-toggle; LTX and WAN do not** (those models have no in-training sampling).
+toggle (default: off); LTX and WAN do not** (those models have no in-training
+sampling). **krea2 / klein / wan22 also have `--h2d-swap` (default: on)**, an
+experimental frozen-base block-swap speedup — see below.
 
 ## How it works
 
@@ -83,7 +85,7 @@ krea2\krea2_train.bat --name courtney --epochs 40 --samples on --sample-prompts 
 ```
 
 Defaults match the courtney template: res `256,384`, repeats `2`, epochs `40`,
-dim/alpha `32`, blocks_to_swap `14`.
+dim/alpha `32`, blocks_to_swap `14`, samples `off`, h2d-swap `on`.
 
 ## Klein (FLUX.2 Klein 9B)
 
@@ -93,7 +95,7 @@ Klein\klein_train.bat --name courtney --epochs 16 --samples off
 ```
 
 Defaults match the courtney template: res `512,768`, repeats `3`, epochs `16`,
-dim/alpha `32`, blocks_to_swap `6`.
+dim/alpha `32`, blocks_to_swap `6`, samples `off`, h2d-swap `on`.
 
 ## Z-Image (De-Turbo)
 
@@ -108,8 +110,8 @@ z-image\zimage_train.bat --name tammy --target-epochs 23 --samples on --sample-p
 ```
 
 Defaults match the tammy template: res `1024x1024`, dim/alpha `64/32`, lr `8e-5`,
-target-epochs `23`. Trained on De-Turbo; run the LoRA on Z-Image Turbo at
-inference with `--guidance_scale 0`.
+target-epochs `23`, samples `off`. Trained on De-Turbo; run the LoRA on
+Z-Image Turbo at inference with `--guidance_scale 0`.
 
 Z-Image LoRAs need a one-time conversion before ComfyUI can load them (the
 train script prints the exact command on completion):
@@ -136,7 +138,8 @@ wan22\wan22_train.bat --name tammy --epochs 16
 ```
 
 Defaults match the tammy template: res `480x640`, dim/alpha `16/16`,
-blocks_to_swap `30`, epochs `16`, task `t2v-A14B`, dual high+low noise DiT.
+blocks_to_swap `30`, epochs `16`, task `t2v-A14B`, h2d-swap `on`, dual
+high+low noise DiT.
 The WAN video slot uses `target_frames`/`frame_extraction` with **no**
 `frame_sample` (pass `--frame-sample 4` to add it).
 
@@ -163,13 +166,29 @@ latest saved state. Metadata flags (`--meta-title`, `--meta-author`,
 
 ## Samples toggle (krea2 / klein / z-image)
 
-- `--samples on` (default) — enables `--sample_prompts` + `--sample_every_n_epochs`.
+- `--samples off` (default) — disables sampling entirely.
+- `--samples on` — enables `--sample_prompts` + `--sample_every_n_epochs`.
   krea2/klein also add `--sample_at_first`; z-image does not. Requires
   `--sample-prompts <file>`.
-- `--samples off` — disables sampling entirely.
 - `--sample-every N` — epochs between samples (default 2; z-image default 1).
 
 WAN and LTX have no in-training sampling, so neither exposes `--samples`.
+
+## H2D-only block swap toggle (krea2 / klein / wan22)
+
+Experimental frozen-base-only block swap: keeps a permanent CPU master copy of
+each streamed block and only ever copies Host→Device, skipping the normal
+Device→Host writeback. Can meaningfully speed up training since the base
+weights never change during LoRA training; may be slower on power-limited
+(e.g. laptop/Max-Q) GPUs. Requires `--gradient_checkpointing`, which all three
+scripts already set unconditionally.
+
+- `--h2d-swap on` (default) — passes `--block_swap_h2d_only` to the trainer.
+- `--h2d-swap off` — classic (exchange) block swap.
+
+Only meaningful together with `--blocks-to-swap N` (N > 0); z-image and LTX
+don't expose this flag (z-image runs without block swap; LTX uses a separate,
+older trainer fork that doesn't implement it).
 
 ## Trigger words (all architectures)
 

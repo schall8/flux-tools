@@ -27,8 +27,8 @@ set "TEXT_ENCODER=%COMFY_MODELS%\text_encoders\Qwen3-VL-4B-Instruct\model-00001-
 
 set "NAME="
 set "DATASET="
-set "REPEATS=2"
-set "RES=256x384"
+set "REPEATS=4"
+set "RES=512x768"
 set "DRYRUN=0"
 
 REM ---- parse args ----

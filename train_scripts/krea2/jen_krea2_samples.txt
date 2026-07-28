@@ -1,0 +1,3 @@
+j3n, candid realistic photograph of a middle-aged woman, shoulder-length brown hair, freckles across her face, green eyes, gentle smile, plain black V-neck t-shirt, plain light gray studio background, soft even lighting, sharp focus, DSLR --w 512 --h 768 --s 20 --l 1.0 --d 42
+j3n, close-up portrait of a middle-aged woman with freckles and shoulder-length brown hair, natural skin texture with visible pores, relaxed expression, soft outdoor daylight --w 512 --h 768 --s 20 --l 1.0 --d 42
+j3n, a middle-aged woman with shoulder-length brown hair sitting on a couch, smiling softly, natural light from the side, photorealistic --w 512 --h 768 --s 20 --l 1.0 --d 42

@@ -1,5 +1,6 @@
 @echo off
 setlocal enabledelayedexpansion
+set "SCRIPT_DIR=%~dp0"
 title Musubi Z-Image LoRA Training (generic / parameter-driven)
 
 REM =====================================================================
@@ -13,6 +14,12 @@ REM  Auto-resume: if a "<name>_zimage-NNNNNN-state" folder exists in the
 REM  output dir, it resumes and runs only the REMAINING epochs to reach
 REM  --target-epochs (musubi restarts its epoch counter on --resume).
 REM
+REM  Resuming an aborted run:
+REM    No flag needed - resume is automatic. Just re-run the exact same command
+REM    that started the job; the script finds the newest "-state" folder itself
+REM    and trains only the epochs still remaining to reach --target-epochs:
+REM      zimage_train.bat --name tammy --target-epochs 23 --trigger tammy
+REM
 REM  USAGE:
 REM    zimage_train.bat --name tammy [options]
 REM
@@ -21,7 +28,7 @@ REM    --target-epochs 23   --dim 64   --alpha 32   --lr 8e-5   --save-every 1
 REM    --output-name <name>_zimage   --output-root D:\DATA\training\zimage_loras
 REM
 REM  Sampling toggle:
-REM    --samples on|off      (default: on)
+REM    --samples on|off      (default: off)
 REM    --sample-prompts <file>   (required when --samples on)
 REM    --sample-every 1
 REM
@@ -31,12 +38,12 @@ REM                          (comma-separated for multiple, e.g. "tammy, corset"
 REM =====================================================================
 
 REM ---- load machine paths from config.bat (run setup.bat to create it) ----
-set "CONFIG=%~dp0..\config.bat"
+set "CONFIG=%SCRIPT_DIR%..\config.bat"
 if not exist "%CONFIG%" ( echo ERROR: config not found: %CONFIG% & echo Run setup.bat in the train_scripts folder once to create it. & exit /b 1 )
 call "%CONFIG%"
 
 REM ---- fixed paths / defaults ----
-set "GEN_DIR=%~dp0_generated"
+set "GEN_DIR=%SCRIPT_DIR%_generated"
 set "DIT=%COMFY_MODELS%\diffusion_models\z_image_de_turbo_v1_bf16.safetensors"
 set "VAE=%COMFY_MODELS%\vae\z_image_ae.safetensors"
 set "TE=%COMFY_MODELS%\text_encoders\qwen_3_4b.safetensors"
@@ -49,7 +56,7 @@ set "DIM=64"
 set "ALPHA=32"
 set "LR=8e-5"
 set "SAVE_EVERY=1"
-set "SAMPLES=on"
+set "SAMPLES=off"
 set "SAMPLE_PROMPTS="
 set "SAMPLE_EVERY=1"
 set "TRIGGER="
@@ -185,7 +192,7 @@ if %ERRORLEVEL% NEQ 0 ( echo. & echo Training failed with error code %errorlevel
 if not "!TRIGGER!"=="" (
     echo.
     echo Stamping trigger word "!TRIGGER!" into output LoRAs...
-    python "%~dp0..\write_trigger.py" --dir "%OUT%" --trigger "!TRIGGER!"
+    python "%SCRIPT_DIR%..\write_trigger.py" --dir "%OUT%" --trigger "!TRIGGER!"
 )
 
 echo.
