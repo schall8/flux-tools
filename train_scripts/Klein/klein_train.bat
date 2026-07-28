@@ -194,15 +194,23 @@ accelerate launch ^
   --seed 42
 
 set "TRAINRC=%ERRORLEVEL%"
-if not "%TRAINRC%"=="0" (
-    echo.
-    echo Training failed with error code %TRAINRC%
-) else (
+REM accelerate/Windows can leave a stray non-zero exit code behind even after a
+REM fully successful run (teardown noise), so trust the actual output file over
+REM the raw errorlevel.
+if exist "%OUTPUT_DIR%\%OUTPUT_NAME%.safetensors" (
+    if not "%TRAINRC%"=="0" (
+        echo.
+        echo NOTE: trainer exited with code %TRAINRC% after teardown, but the final
+        echo LoRA was saved - treating this as a successful run.
+    )
     if not "!TRIGGER!"=="" (
         echo.
         echo Stamping trigger word "!TRIGGER!" into output LoRAs...
         python "%SCRIPT_DIR%..\write_trigger.py" --dir "%OUTPUT_DIR%" --trigger "!TRIGGER!"
     )
+) else (
+    echo.
+    echo Training failed with error code %TRAINRC% ^(no final .safetensors found^)
 )
 
 pause

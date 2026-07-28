@@ -187,7 +187,15 @@ accelerate launch --num_cpu_threads_per_process 1 --mixed_precision bf16 zimage_
   --output_dir "%OUT%" ^
   --output_name "%OUTNAME%"
 
-if %ERRORLEVEL% NEQ 0 ( echo. & echo Training failed with error code %errorlevel% & pause & exit /b 1 )
+REM accelerate/Windows can leave a stray non-zero exit code behind even after a
+REM fully successful run (teardown noise), so trust the actual output file over
+REM the raw errorlevel.
+if not exist "%OUT%\%OUTNAME%.safetensors" (
+    echo.
+    echo Training failed with error code %ERRORLEVEL% ^(no final .safetensors found^)
+    pause
+    exit /b 1
+)
 
 if not "!TRIGGER!"=="" (
     echo.
