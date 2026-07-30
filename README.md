@@ -91,8 +91,8 @@ with a trigger word prepended — ready for LoRA training. Prompt presets:
 `descriptive`, `short`, `training`, `tags`.
 
 ```bash
-python joycaption_dir.py ./dataset underbust_corset
-python joycaption_dir.py ./dataset underbust_corset --style short --overwrite
+python joycaption_dir.py ./dataset tambam
+python joycaption_dir.py ./dataset tambam --style short --overwrite
 ```
 
 Requires `torch`, `transformers`, `accelerate`, and `pillow`. The model (~17 GB)

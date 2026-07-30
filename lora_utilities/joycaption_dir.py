@@ -8,8 +8,8 @@ trigger word prepended for LoRA training.
 
 Usage:
     python joycaption_dir.py <dir> <trigger>
-    python joycaption_dir.py ./dataset underbust_corset
-    python joycaption_dir.py ./dataset underbust_corset --style short --overwrite
+    python joycaption_dir.py ./dataset tambam
+    python joycaption_dir.py ./dataset tambam --style short --overwrite
 
 Requires (once):
     pip install torch transformers accelerate pillow
@@ -28,6 +28,12 @@ from transformers import AutoProcessor, LlavaForConditionalGeneration
 MODEL_ID = "fancyfeast/llama-joycaption-beta-one-hf-llava"
 
 IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif", ".tiff", ".jfif"}
+
+# The vision encoder downsamples to a small fixed resolution internally regardless
+# of input size, so feeding it multi-megapixel source images (e.g. after an
+# upscale pass) just wastes CPU time in the image processor for no quality gain.
+# Cap the long edge before handing the image off.
+MAX_INPUT_DIM = 1536
 
 # Prompt presets. Override any of these with --prompt "..."
 PROMPTS = {
@@ -113,6 +119,11 @@ def find_images(directory: Path, recursive: bool):
 def load_model(device: str):
     print(f"Loading {MODEL_ID} on {device} ...", flush=True)
     dtype = torch.bfloat16 if device.startswith("cuda") else torch.float32
+    # Passing use_fast explicitly (either True or False) breaks construction
+    # for this model on this transformers version - True crashes on Lanczos
+    # resampling in F.interpolate, False hits a kwarg-binding bug in
+    # LlavaProcessor.__init__. Leave it unset; the resulting "slow processor"
+    # warning is cosmetic.
     processor = AutoProcessor.from_pretrained(MODEL_ID)
     model = LlavaForConditionalGeneration.from_pretrained(
         MODEL_ID,
@@ -210,6 +221,8 @@ def main():
         try:
             image = Image.open(img_path)
             image = ImageOps.exif_transpose(image).convert("RGB")
+            if max(image.size) > MAX_INPUT_DIM:
+                image.thumbnail((MAX_INPUT_DIM, MAX_INPUT_DIM), Image.LANCZOS)
         except Exception as e:
             failed += 1
             print(f"[{i}/{len(images)}] FAILED to open {img_path.name}: {e}")
