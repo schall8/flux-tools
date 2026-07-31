@@ -27,13 +27,13 @@ paths from `config.bat`. Create it once:
 setup.bat
 ```
 
-`setup.bat` asks for eight locations (press Enter to accept each default) and
+`setup.bat` asks for nine locations (press Enter to accept each default) and
 writes `config.bat`. Re-run it any time to change a path; your current values
 become the new defaults. Prefer editing by hand? Copy `config.example.bat` to
 `config.bat` and edit the paths. `config.bat` is git-ignored, so your local
 paths never get committed.
 
-The eight locations:
+The nine locations:
 
 | Variable | What it points at |
 |----------|-------------------|
@@ -41,7 +41,8 @@ The eight locations:
 | `MUSUBI_LTX_DIR` | `musubi-tuner-ltx` repo (LTX-2.3) |
 | `COMFY_MODELS` | ComfyUI `models` root (diffusion_models / vae / text_encoders / clip) |
 | `FLUX2_DIR` | FLUX.2 folder (Klein dit + ae + text_encoder) |
-| `LTX_GEMMA_ROOT` | LTX-2.3 Gemma text-encoder folder |
+| `LTX_GEMMA_ROOT` | LTX-2.3 Gemma text-encoder folder, HF format (fallback only — see below) |
+| `LTX_GEMMA_SAFETENSORS` | LTX-2.3 Gemma text-encoder, single `.safetensors` file (used by default) |
 | `LTX_CHECKPOINT` | LTX-2.3 DiT checkpoint (full path — often a personal finetune) |
 | `TRAINING_ROOT` | output root; each arch adds its own `_loras` subfolder |
 | `HF_HOME` | HuggingFace cache (krea2) |
@@ -49,14 +50,17 @@ The eight locations:
 Individual model **filenames** (`krea2-raw.safetensors`, `wan2.2_*`,
 `z_image_*`, …) are derived from these folders inside each script. If yours
 differ, either edit the script default or override per-run with the existing
-flags (`--vae`, `--dit`, `--checkpoint`, `--text-encoder`, `--gemma-root`, …).
+flags (`--vae`, `--dit`, `--checkpoint`, `--text-encoder`, `--gemma-root`,
+`--gemma-safetensors`, …).
 If you run a script before `config.bat` exists, it stops and tells you to run
 `setup.bat`.
 
 Sampling support by architecture: **krea2 / klein / z-image have the `--samples`
 toggle (default: off); LTX and WAN do not** (those models have no in-training
 sampling). **krea2 / klein / wan22 also have `--h2d-swap` (default: on)**, an
-experimental frozen-base block-swap speedup — see below.
+experimental frozen-base block-swap speedup — see below. **LTX also uses H2D-only
+block swap, but it's hardcoded on** (no `--h2d-swap` toggle) rather than exposed
+as a flag.
 
 ## How it works
 
@@ -164,6 +168,18 @@ blocks_to_swap `14`, epochs `24`, preset `t2v`. LTX training **auto-resumes**
 latest saved state. Metadata flags (`--meta-title`, `--meta-author`,
 `--meta-desc`, `--meta-tags`) are LTX-only and default off the subject name.
 
+Both scripts load Gemma from **`LTX_GEMMA_SAFETENSORS`** (a single FP8
+`.safetensors` file) by default, not `LTX_GEMMA_ROOT` (the older HF-format
+folder, kept as a fallback / override via `--gemma-root`). Pass
+`--gemma-safetensors <path>` to override per-run. LTX training also always
+passes `--block_swap_h2d_only` (H2D-only block swap — see below) and caps
+dataloader workers at 2 with `--persistent_data_loader_workers`, so workers
+start once and survive across all epochs instead of being torn down and
+respawned every epoch (the respawn showed up as bursts of oneDNN/absl log spam
+at each epoch boundary — harmless, but slow and easy to mistake for a hang).
+There's no `--logging_dir`/TensorBoard output — it was never actually being
+used and added to that per-epoch churn, so it was dropped.
+
 ## Samples toggle (krea2 / klein / z-image)
 
 - `--samples off` (default) — disables sampling entirely.
@@ -186,9 +202,11 @@ scripts already set unconditionally.
 - `--h2d-swap on` (default) — passes `--block_swap_h2d_only` to the trainer.
 - `--h2d-swap off` — classic (exchange) block swap.
 
-Only meaningful together with `--blocks-to-swap N` (N > 0); z-image and LTX
-don't expose this flag (z-image runs without block swap; LTX uses a separate,
-older trainer fork that doesn't implement it).
+Only meaningful together with `--blocks-to-swap N` (N > 0); z-image doesn't
+expose this flag (it runs without block swap). **LTX also always uses
+H2D-only block swap**, but it's hardcoded into `ltx_train.bat` rather than
+exposed as a `--h2d-swap` toggle — there's no way to turn it off short of
+editing the script.
 
 ## Trigger words (all architectures)
 
@@ -228,5 +246,6 @@ re-reads the header.
 
 Every tunable is a flag: `--epochs`, `--dim`, `--alpha`, `--lr`,
 `--blocks-to-swap`, `--save-every`, `--output-root`, `--output-name`, and the
-model paths (`--vae`, `--text-encoder`, `--checkpoint`, `--gemma-root`, ...).
+model paths (`--vae`, `--text-encoder`, `--checkpoint`, `--gemma-root`,
+`--gemma-safetensors`, ...).
 Run a script with no args to see its usage header.

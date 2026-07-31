@@ -38,6 +38,7 @@ set "MUSUBI_DIR=%MUSUBI_LTX_DIR%"
 set "GEN_DIR=%SCRIPT_DIR%_generated"
 REM LTX_CHECKPOINT comes from config.bat
 set "GEMMA_ROOT=%LTX_GEMMA_ROOT%"
+set "GEMMA_SAFETENSORS=%LTX_GEMMA_SAFETENSORS%"
 
 set "NAME="
 set "OUTPUT_ROOT=%TRAINING_ROOT%\ltx_loras"
@@ -77,6 +78,7 @@ if /i "%~1"=="--warmup-steps"   ( set "WARMUP=%~2" & shift & shift & goto parse 
 if /i "%~1"=="--target-preset"  ( set "TARGET_PRESET=%~2" & shift & shift & goto parse )
 if /i "%~1"=="--checkpoint"     ( set "LTX_CHECKPOINT=%~2" & shift & shift & goto parse )
 if /i "%~1"=="--gemma-root"     ( set "GEMMA_ROOT=%~2" & shift & shift & goto parse )
+if /i "%~1"=="--gemma-safetensors" ( set "GEMMA_SAFETENSORS=%~2" & shift & shift & goto parse )
 if /i "%~1"=="--meta-title"     ( set "META_TITLE=%~2" & shift & shift & goto parse )
 if /i "%~1"=="--meta-author"    ( set "META_AUTHOR=%~2" & shift & shift & goto parse )
 if /i "%~1"=="--meta-desc"      ( set "META_DESC=%~2" & shift & shift & goto parse )
@@ -132,9 +134,9 @@ accelerate launch ^
   --ltx2_mode v ^
   --ltx_version 2.3 ^
   --cuda_allow_tf32 ^
-  --gemma_root "%GEMMA_ROOT%" ^
-  --gemma_load_in_4bit ^
-  --gemma_bnb_4bit_quant_type nf4 ^
+  --gemma_safetensors "%GEMMA_SAFETENSORS%" ^
+  --max_data_loader_n_workers 2 ^
+  --persistent_data_loader_workers ^
   --network_module networks.lora_ltx2 ^
   --network_dim %DIM% ^
   --network_alpha %ALPHA% ^
@@ -143,6 +145,7 @@ accelerate launch ^
   --fp8_scaled ^
   --gradient_checkpointing ^
   --blocks_to_swap %BLOCKS% ^
+  --block_swap_h2d_only ^
   --sdpa ^
   --optimizer_type adafactor ^
   --optimizer_args relative_step=False scale_parameter=False warmup_init=False ^
@@ -165,8 +168,7 @@ accelerate launch ^
   --metadata_description "%META_DESC%" ^
   --metadata_tags "%META_TAGS%" ^
   --save_state ^
-  --autoresume ^
-  --logging_dir "%OUTPUT_DIR%\logs"
+  --autoresume
 
 set "TRAINRC=%ERRORLEVEL%"
 REM accelerate/Windows can leave a stray non-zero exit code behind even after a

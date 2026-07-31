@@ -32,6 +32,7 @@ set "GEN_DIR=%~dp0_generated"
 set "CACHE_ROOT=%MUSUBI_LTX_DIR:\=/%/cache"
 REM LTX_CHECKPOINT comes from config.bat
 set "GEMMA_ROOT=%LTX_GEMMA_ROOT%"
+set "GEMMA_SAFETENSORS=%LTX_GEMMA_SAFETENSORS%"
 
 set "NAME="
 set "RES=512x768"
@@ -62,6 +63,7 @@ if /i "%~1"=="--extra-dir"        ( set "EXTRA_DIR=%~2" & shift & shift & goto p
 if /i "%~1"=="--extra-repeats"    ( set "EXTRA_REPEATS=%~2" & shift & shift & goto parse )
 if /i "%~1"=="--checkpoint"       ( set "LTX_CHECKPOINT=%~2" & shift & shift & goto parse )
 if /i "%~1"=="--gemma-root"       ( set "GEMMA_ROOT=%~2" & shift & shift & goto parse )
+if /i "%~1"=="--gemma-safetensors" ( set "GEMMA_SAFETENSORS=%~2" & shift & shift & goto parse )
 if /i "%~1"=="--cache-root"       ( set "CACHE_ROOT=%~2" & shift & shift & goto parse )
 if /i "%~1"=="--dry-run"          ( set "DRYRUN=1" & shift & goto parse )
 echo ERROR: unknown argument: %~1
@@ -86,7 +88,7 @@ if "%DRYRUN%"=="1" (
     echo.
     echo [DRY RUN] TOML rendered. Would cache with:
     echo   checkpoint: %LTX_CHECKPOINT%
-    echo   gemma_root: %GEMMA_ROOT%
+    echo   gemma_safetensors: %GEMMA_SAFETENSORS%
     echo   video: %VIDEO_DIR%  image: %IMAGE_DIR%  extra: %EXTRA_DIR%
     echo [DRY RUN] Not launching cache.
     endlocal & exit /b 0
@@ -102,7 +104,7 @@ if errorlevel 1 ( echo ERROR: latent caching failed & exit /b 1 )
 
 echo.
 echo Caching text encoder outputs (Gemma)...
-python ltx2_cache_text_encoder_outputs.py --dataset_config "%TOML%" --ltx2_checkpoint "%LTX_CHECKPOINT%" --gemma_root "%GEMMA_ROOT%" --gemma_load_in_4bit --gemma_bnb_4bit_quant_type nf4 --gemma_bnb_4bit_compute_dtype bf16 --device cuda --mixed_precision bf16 --ltx2_mode v --batch_size 1
+python ltx2_cache_text_encoder_outputs.py --dataset_config "%TOML%" --ltx2_checkpoint "%LTX_CHECKPOINT%" --gemma_safetensors "%GEMMA_SAFETENSORS%" --device cuda --mixed_precision bf16 --ltx2_mode v --batch_size 1
 if errorlevel 1 ( echo ERROR: text encoder caching failed & exit /b 1 )
 
 echo.

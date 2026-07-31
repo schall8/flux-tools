@@ -20,6 +20,7 @@ set "HF_HOME=D:\hf-cache"
 set "COMFY_MODELS=D:\comfyui\ComfyUI\models"
 set "FLUX2_DIR=D:\ai\models\FLUX2"
 set "LTX_GEMMA_ROOT=D:\ai\models\LTX-2.3\gemma"
+set "LTX_GEMMA_SAFETENSORS=D:\comfyui\ComfyUI\models\text_encoders\gemma_3_12B_it_fp8_e4m3fn.safetensors"
 set "LTX_CHECKPOINT=D:\comfyui\ComfyUI\models\diffusion_models\LTX23\ltx2310eros_v1.safetensors"
 
 REM ---- if a config already exists, use its values as the defaults ----
@@ -38,7 +39,8 @@ call :ask MUSUBI_DIR      "musubi-tuner repo (krea2 / klein / z-image / wan)"   
 call :ask MUSUBI_LTX_DIR  "musubi-tuner-ltx repo (LTX-2.3)"                                    "!MUSUBI_LTX_DIR!"
 call :ask COMFY_MODELS    "ComfyUI models root (diffusion_models / vae / text_encoders / clip)" "!COMFY_MODELS!"
 call :ask FLUX2_DIR       "FLUX.2 model folder (Klein dit + ae + text_encoder)"                "!FLUX2_DIR!"
-call :ask LTX_GEMMA_ROOT  "LTX-2.3 Gemma text-encoder folder"                                  "!LTX_GEMMA_ROOT!"
+call :ask LTX_GEMMA_ROOT  "LTX-2.3 Gemma text-encoder folder (HF format, fallback only)"        "!LTX_GEMMA_ROOT!"
+call :ask LTX_GEMMA_SAFETENSORS "LTX-2.3 Gemma text-encoder single-file .safetensors (used by default)" "!LTX_GEMMA_SAFETENSORS!"
 call :ask LTX_CHECKPOINT  "LTX-2.3 DiT checkpoint (full path to .safetensors)"                 "!LTX_CHECKPOINT!"
 call :ask TRAINING_ROOT   "Output root for trained LoRAs (each arch adds its own _loras subfolder)" "!TRAINING_ROOT!"
 call :ask HF_HOME         "HuggingFace cache folder"                                           "!HF_HOME!"
@@ -57,6 +59,7 @@ echo Writing %CONFIG% ...
 >> "%CONFIG%" echo set "COMFY_MODELS=!COMFY_MODELS!"
 >> "%CONFIG%" echo set "FLUX2_DIR=!FLUX2_DIR!"
 >> "%CONFIG%" echo set "LTX_GEMMA_ROOT=!LTX_GEMMA_ROOT!"
+>> "%CONFIG%" echo set "LTX_GEMMA_SAFETENSORS=!LTX_GEMMA_SAFETENSORS!"
 >> "%CONFIG%" echo set "LTX_CHECKPOINT=!LTX_CHECKPOINT!"
 
 echo.
@@ -66,6 +69,7 @@ echo   MUSUBI_LTX_DIR  = !MUSUBI_LTX_DIR!
 echo   COMFY_MODELS    = !COMFY_MODELS!
 echo   FLUX2_DIR       = !FLUX2_DIR!
 echo   LTX_GEMMA_ROOT  = !LTX_GEMMA_ROOT!
+echo   LTX_GEMMA_SAFETENSORS = !LTX_GEMMA_SAFETENSORS!
 echo   LTX_CHECKPOINT  = !LTX_CHECKPOINT!
 echo   TRAINING_ROOT   = !TRAINING_ROOT!
 echo   HF_HOME         = !HF_HOME!

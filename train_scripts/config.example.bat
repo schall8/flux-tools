@@ -33,8 +33,11 @@ set "COMFY_MODELS=D:\comfyui\ComfyUI\models"
 REM ---- FLUX.2 model folder (Klein dit + ae + text_encoder) ----
 set "FLUX2_DIR=D:\ai\models\FLUX2"
 
-REM ---- LTX-2.3 Gemma text-encoder folder ----
+REM ---- LTX-2.3 Gemma text-encoder folder (HF format; fallback only, not used by default) ----
 set "LTX_GEMMA_ROOT=D:\ai\models\LTX-2.3\gemma"
+
+REM ---- LTX-2.3 Gemma text-encoder single safetensors file (used by default - see README) ----
+set "LTX_GEMMA_SAFETENSORS=D:\comfyui\ComfyUI\models\text_encoders\gemma_3_12B_it_fp8_e4m3fn.safetensors"
 
 REM ---- LTX-2.3 DiT checkpoint (full path; this is often a personal finetune) ----
 set "LTX_CHECKPOINT=D:\comfyui\ComfyUI\models\diffusion_models\LTX23\ltx2310eros_v1.safetensors"
